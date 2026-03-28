@@ -1,0 +1,12 @@
+autoresearch.jsonl
+autoresearch.jsonl.bak
+autoresearch-dashboard.md
+worklog.md
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+*.egg-info/
+dist/
+build/

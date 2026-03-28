@@ -1,0 +1,11 @@
+name: autoresearch
+title: AutoResearch
+description: >
+  Autonomous code optimization experiment loop. Generates hypotheses, edits code,
+  runs benchmarks, evaluates results, and iterates until convergence.
+  Fully agent-driven using built-in file/terminal tools.
+version: 1.0.0
+settings_sections: []
+per_project_config: true
+per_agent_config: true
+always_enabled: false

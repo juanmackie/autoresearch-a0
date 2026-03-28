@@ -1,0 +1,5 @@
+metric: runtime
+metric_unit: s
+best_direction: lower
+max_runs: 25
+benchmark_runs: 3
