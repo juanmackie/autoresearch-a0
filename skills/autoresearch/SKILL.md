@@ -18,9 +18,9 @@ triggers:
 
 # AutoResearch — Autonomous Code Optimization
 
-Use this skill to run an iterative optimization loop on a target file. The loop
-generates hypotheses, edits code, benchmarks results, evaluates improvements,
-and repeats until convergence.
+Use this skill to run an iterative optimization loop on a target file. The
+`autoresearch` tool handles state management, benchmarking, evaluation, and
+reporting. Your job is to hypothesize and edit the code.
 
 ## Before You Start
 
@@ -34,7 +34,7 @@ Tell the user what you are about to do:
 > 5. Keep improvements, revert regressions
 > 6. Repeat until convergence
 
-Then confirm or ask for:
+Confirm or ask for:
 - **Target file** (required, e.g. `bogo_sort.py`)
 - **Metric** (default: `runtime`)
 - **Metric unit** (default: `s`)
@@ -42,267 +42,139 @@ Then confirm or ask for:
 - **Max runs** (default: `25`)
 - **Benchmark command** (optional — defaults to timing `python <file>`)
 
-## Import the Helpers
+## The Tool
 
-All state and benchmarking functions live in the helpers module. Import once at the top:
+Call the `autoresearch` tool with `tool_name: autoresearch`. The tool accepts
+these parameters via `tool_args`:
 
-```python
-from usr.plugins.autoresearch.helpers import state
-```
+| Parameter | Required | Default | Description |
+|-----------|----------|---------|-------------|
+| action | No | optimize | optimize, dashboard, history, validate, reset, status |
+| file | First call | — | Target file |
+| metric | No | runtime | Metric name |
+| metric_unit | No | s | Unit label |
+| best_direction | No | lower | `lower` or `higher` |
+| max_runs | No | 25 | Max iterations |
+| benchmark_command | No | — | Custom shell command |
+| benchmark_runs | No | 3 | Runs per benchmark |
+| hypothesis | No | — | Your optimization hypothesis |
+| description | No | — | What you changed |
 
 ## The Loop
 
-### Phase 1: Initialize or Resume
+### Step 1: Initialize
 
-Check whether `autoresearch.jsonl` exists.
+Call the tool to start a new experiment:
 
-**If it does not exist** — initialize:
-
-```python
-config = state.init_config(
-    target_file="bogo_sort.py",
-    metric="runtime",
-    metric_unit="s",
-    best_direction="lower",
-    max_runs=25,
-    benchmark_runs=3,
-    benchmark_command=None,  # None = time python <file>
-)
+```json
+{
+  "thoughts": ["Starting optimization on bogo_sort.py"],
+  "headline": "Initialize AutoResearch",
+  "tool_name": "autoresearch",
+  "tool_args": {
+    "action": "optimize",
+    "file": "bogo_sort.py",
+    "metric": "runtime",
+    "metric_unit": "s",
+    "best_direction": "lower"
+  }
+}
 ```
 
-**If it exists** — load state and resume:
+The tool will:
+- Initialize `autoresearch.jsonl` with a config header
+- Benchmark the current source as a baseline
+- Return the baseline value, previous run summary, and sparkline trend
 
-```python
-s = state.load_state()
-run_id = state.get_run_count() + 1
-config = s["config"]
-```
-
-### Phase 2: Benchmark Baseline
-
-```python
-baseline = state.run_benchmark(target_file, benchmark_command, benchmark_runs)
-```
-
-- Returns `float` (median elapsed seconds) or `None` on failure.
-- If `None`, stop and tell the user: "Benchmark failed on current source. Check the file and benchmark command."
-
-### Phase 3: Read and Analyze
+### Step 2: Analyze and Hypothesize
 
 1. Read the target file using your file read tool.
-2. Check previous runs for patterns:
-   ```python
-   prev = state.summarize_runs()
-   ```
-3. Analyze the code for optimization opportunities.
+2. Analyze the code for optimization opportunities.
+3. Check the tool response for previous run patterns and sparkline trend.
 4. Formulate a clear hypothesis, e.g.:
    - "Replace bubble sort with Python's built-in sorted() for O(n log n) time"
    - "Use list comprehension instead of append loop to reduce overhead"
    - "Cache repeated expensive computation outside the loop"
 
-### Phase 4: Edit
+### Step 3: Edit the File
 
-1. Save the source hash before editing:
-   ```python
-   source_hash_before = state.sha256(source_before)
-   ```
-2. Apply your optimization by editing the file using your file write tool.
-3. Save a copy of the original source so you can revert if needed.
+Apply your optimization hypothesis by editing the file using your file write
+tool. Save the original source first so the tool can revert on failure.
 
-### Phase 5: Benchmark Modified Source
+### Step 4: Evaluate
 
-```python
-new_metric = state.run_benchmark(target_file, benchmark_command, benchmark_runs)
+Call the tool again with your hypothesis and description:
+
+```json
+{
+  "thoughts": ["Evaluating: replaced bogo sort with sorted()"],
+  "headline": "Evaluate optimization run",
+  "tool_name": "autoresearch",
+  "tool_args": {
+    "action": "optimize",
+    "file": "bogo_sort.py",
+    "hypothesis": "Replace bogo sort with Python built-in sorted() for O(n log n)",
+    "description": "Replaced random shuffle loop with return sorted(arr)"
+  }
+}
 ```
 
-If it fails (`None`):
-1. Revert the file to the original source.
-2. Log an error result (see Phase 7 with `status="error"`).
-3. Tell the user: "Benchmark failed on modified source. File reverted."
+The tool will:
+- Read the modified source and hash it
+- Benchmark the modified code (median of N runs)
+- Compare against baseline: **keep** if improved, **discard** if not
+- Revert the file on discard
+- Log the result to `autoresearch.jsonl`
+- Return a result summary with sparkline trend and range bar
 
-### Phase 6: Evaluate
+### Step 5: Check Results
 
-```python
-source_hash_after = state.sha256(source_after)
+Read the tool response. It includes:
+- **Status:** keep, discard, skip, or error
+- **Before / After** metric values and delta percentage
+- **Trend:** sparkline showing metric trajectory across all runs
+- **Range:** horizontal bar showing where the result falls
+- **Best so far:** the best kept run
+- **Convergence:** if last 3 runs were discarded
 
-if source_hash_before == source_hash_after:
-    status = "skip"
-else:
-    improved = state.is_improvement(baseline, new_metric, best_direction)
-    status = "keep" if improved else "discard"
-```
+### Step 6: Repeat or Stop
 
-- **keep** — optimization worked. Keep the file as-is.
-- **discard** — no improvement. Revert the file to the original source.
-- **skip** — file was not changed. Skip benchmark.
-
-### Phase 7: Log Result
-
-```python
-result = state.build_result_entry(
-    run_id=run_id,
-    target_file=target_file,
-    hypothesis=hypothesis,
-    description=description,
-    metric_before=baseline,
-    metric_after=new_metric,
-    metric_unit=metric_unit,
-    best_direction=best_direction,
-    source_hash_before=source_hash_before,
-    source_hash_after=source_hash_after,
-    status=status,
-)
-state.append_state(result)
-```
-
-### Phase 8: Report to User
-
-Generate sparklines for the result message:
-
-```python
-# Collect all metrics from state
-s = state.load_state()
-all_metrics = [r["metric"] for r in s["runs"]
-               if r.get("type") != "config" and r.get("metric") is not None]
-
-trend = state.sparkline(all_metrics)
-bar = state.horizontal_bar(new_metric, min(all_metrics), max(all_metrics))
-```
-
-Show the result in this format:
-
-```
-## Run #3 Result
-- Status: keep
-- Before: 1.230000s
-- After:  0.450000s
-- Delta:  -63.41%
-- Hypothesis: Replace bubble sort with sorted()
-- Trend: ▁▃▅▇█ (3 runs)
-- Range: 0.4500 ████████████░░░░ 4.2300
-
-Best so far: Run #3 — 0.450000s (Replace bubble sort with sorted())
-```
-
-If the change was discarded, add:
-> Call the skill again to try another approach.
-
-### Phase 9: Check Convergence
-
-```python
-converged = state.check_convergence(window=3)
-```
-
-If `True` (last 3 runs all discarded):
-- Tell the user: "Convergence detected: last 3 attempts did not improve the metric."
-- Suggest: generating a dashboard, trying a fundamentally different approach, or stopping.
-
-Check max runs:
-
-```python
-if state.get_run_count() >= config.get("maxRuns", 25):
-    # Max runs reached — stop the loop
-    pass
-```
-
-### Phase 10: Repeat or Stop
-
-- **Converged or max runs** → generate dashboard, report final results, stop.
-- **Otherwise** → go back to Phase 3 (Read and Analyze) for the next iteration.
+- **Converged** → tell the user, suggest dashboard or new approach.
+- **Max runs reached** → stop, suggest dashboard.
+- **Otherwise** → go back to Step 2.
 
 ## On-Demand Commands
 
-The user can ask for these at any time during or after the loop:
+Ask the agent or call the tool directly:
 
-### Generate Dashboard
+| What to say | Tool action |
+|-------------|-------------|
+| "Generate the autoresearch dashboard" | `action=dashboard` |
+| "Show autoresearch history" | `action=history` |
+| "Reset autoresearch state" | `action=reset` |
+| "Validate autoresearch state" | `action=validate` |
+| "Show autoresearch status" | `action=status` |
 
-```python
-dashboard = state.generate_dashboard()
+Example call:
+```json
+{
+  "tool_name": "autoresearch",
+  "tool_args": {
+    "action": "dashboard"
+  }
+}
 ```
 
-Writes `autoresearch-dashboard.md` and appends to `worklog.md`. Show the
-dashboard content to the user.
+## State Files
 
-### Show History
-
-```python
-history = state.format_history()
-print(history)
-```
-
-### Validate State
-
-```python
-issues = state.validate_state()
-if issues:
-    print("Issues found:", issues)
-else:
-    print("State is valid.")
-```
-
-### Reset State
-
-```python
-backup_path = state.reset_state()
-print(f"State reset. Backup saved to {backup_path}")
-```
-
-## Helper Functions Reference
-
-All functions are in `usr.plugins.autoresearch.helpers.state`:
-
-### State Management
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `load_state()` | `dict` | Load JSONL state. Returns `{"runs": [...], "config": {...}}` |
-| `append_state(entry)` | `None` | Append a result entry to the JSONL file |
-| `init_config(...)` | `dict` | Initialize experiment config header |
-| `reset_state()` | `str` | Rename state file to `.bak`, return backup path |
-| `validate_state()` | `list[str]` | Check state integrity, return list of issues |
-| `get_run_count()` | `int` | Number of non-config entries recorded |
-
-### Benchmarking
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `run_benchmark(file, cmd, runs)` | `float \| None` | Run benchmark, return median elapsed time. `cmd=None` times `python <file>` |
-
-### Evaluation
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `is_improvement(before, after, dir)` | `bool` | Check if `after` is better than `before` given direction |
-| `build_result_entry(...)` | `dict` | Build a complete result entry for logging |
-| `find_best_run(runs)` | `dict \| None` | Find the best "keep" run |
-| `find_worst_run(runs)` | `dict \| None` | Find the worst run across all statuses |
-| `check_convergence(window=3)` | `bool` | True if last N runs were all "discard" |
-
-### Reporting
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `generate_dashboard()` | `str` | Generate full markdown dashboard, write to file, return content |
-| `format_history()` | `str` | Format compact history with `[+]`/`[-]`/`[!]`/`[~]` markers |
-| `summarize_runs(last_n=5)` | `str` | Summarize recent runs for in-context display |
-
-### Visualization
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `sparkline(values, width=20)` | `str` | Unicode sparkline: `▁▂▃▄▅▆▇█` |
-| `horizontal_bar(value, lo, hi, width=16)` | `str` | Bar chart: `████████░░░░░░░░` |
-
-### Utilities
-
-| Function | Returns | Description |
-|----------|---------|-------------|
-| `sha256(content)` | `str` | Short SHA-256 hash (16 chars) |
-| `git_commit_hash()` | `str` | Short git hash, or random fallback |
+| File | Purpose |
+|------|---------|
+| `autoresearch.jsonl` | Persistent experiment state (config + run results) |
+| `autoresearch.jsonl.bak` | Backup after reset |
+| `autoresearch-dashboard.md` | Auto-generated summary with timeline |
+| `worklog.md` | Dashboard snapshots appended over time |
 
 ## JSONL State Format
-
-Each line in `autoresearch.jsonl` is a JSON object:
 
 **Config line (first line):**
 ```json
@@ -341,58 +213,46 @@ Each line in `autoresearch.jsonl` is a JSON object:
 
 Status values: `keep`, `discard`, `error`, `skip`.
 
-## Full Example Session
+## Full Example
 
 ```
 User: Optimize my bogo_sort.py
 
-Agent: I'll run an AutoResearch optimization loop on bogo_sort.py.
+Agent: I'll run an AutoResearch loop on bogo_sort.py.
+Target: bogo_sort.py | Metric: runtime (s) | Lower is better
 
-Target: bogo_sort.py
-Metric: runtime (s) — lower is better
-Max runs: 25
+[Agent calls autoresearch tool with action=optimize, file=bogo_sort.py]
 
-[Imports helpers, initializes config, benchmarks baseline]
+Tool response: Baseline 4.230000s. Call again with hypothesis and description.
 
-Baseline: 4.230000s (median of 3 runs)
+[Agent reads bogo_sort.py, analyzes it, edits to use sorted()]
 
-Run #1
-Hypothesis: Replace bogo_sort's random shuffle with Python's built-in sorted().
-  sorted() uses Timsort — O(n log n) vs bogo sort's expected O(n!).
-Description: Replaced bogo_sort() body with: return sorted(arr)
-[Edits file, benchmarks]
+[Agent calls autoresearch tool with action=optimize, hypothesis=..., description=...]
 
-Result: keep
-Before: 4.230000s
-After:  0.001000s
-Delta:  -99.98%
-Trend: ▁ (1 run)
-Range: 0.0010 ████████░░░░░░░░ 4.2300
+Tool response:
+  ## Run #1 Result
+  - Status: keep
+  - Before: 4.230000s
+  - After:  0.001000s
+  - Delta:  -99.98%
+  - Hypothesis: Replace bogo sort with sorted()
+  - Trend: ▁ (1 run)
+  - Range: 0.0010 ████████░░░░░░░░ 4.2300
 
-Best so far: Run #1 — 0.001000s
+  Best so far: Run #1 — 0.001000s
 
-Run #2
-Hypothesis: Pre-allocate the result list with known size.
-[Edits file, benchmarks]
+[Agent continues — Run #2 discards, Run #3 discards, Run #4 discards]
 
-Result: discard (0.001200s — slower than 0.001000s)
-File reverted.
+Tool response: Convergence detected. Last 3 runs discarded.
 
-Run #3 — discard
-Run #4 — discard
-
-Convergence detected: Last 3 runs discarded.
-The sorted() optimization in Run #1 appears to be the best achievable improvement.
-
-Dashboard written to autoresearch-dashboard.md
+[Agent calls autoresearch tool with action=dashboard]
 ```
 
 ## Notes
 
-- The agent uses its built-in tools (file read/write, bash, code execution).
-- State persists across sessions via `autoresearch.jsonl`.
-- The helper module does NOT import any Agent Zero internals — it is pure Python.
-- All benchmarking runs in a subprocess with a 120s timeout.
+- The `autoresearch` tool handles all state, benchmarking, evaluation, and file revert.
+- You focus on hypothesis generation and code editing.
+- Benchmark runs in a subprocess with a 120s timeout.
 - Benchmark uses median of N runs to reduce variance.
-- The agent should save the original source before editing so it can revert.
+- The tool auto-reverts discarded edits — you don't need to revert manually.
 - Sparklines auto-downsample to 20 characters for readability.

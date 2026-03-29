@@ -1,6 +1,6 @@
 # AutoResearch for Agent Zero
 
-Autonomous code optimization experiment loop. The agent generates hypotheses, edits code, benchmarks results, evaluates improvements, and iterates until convergence — all using its built-in tools.
+Autonomous code optimization experiment loop. The agent generates hypotheses, edits code, benchmarks results, evaluates improvements, and iterates until convergence.
 
 ## Install
 
@@ -20,6 +20,10 @@ usr/plugins/autoresearch/
 ├── plugin.yaml
 ├── default_config.yaml
 ├── hooks.py
+├── tools/
+│   └── autoresearch.py
+├── prompts/
+│   └── agent.system.tool.autoresearch.md
 ├── helpers/
 │   ├── __init__.py
 │   └── state.py
@@ -31,33 +35,53 @@ usr/plugins/autoresearch/
 └── .gitignore
 ```
 
-## Usage
+## How to Use
 
-Just ask the agent. The skill triggers are detected automatically.
+Just talk to the agent in natural language. The skill triggers and tool are detected automatically.
+
+### Starting an optimization
+
+| Say this | What happens |
+|----------|-------------|
+| `Optimize my bogo_sort.py` | Starts a full loop with defaults (runtime, lower is better) |
+| `Speed up this algorithm` | Agent asks which file, then starts |
+| `Run autoresearch on algo.py targeting memory` | Custom metric name |
+| `Optimize sorter.py, higher is better` | For metrics where bigger is better (e.g. throughput) |
+| `Benchmark and optimize parser.py using "python test_parser.py"` | Custom benchmark command |
+| `Optimize engine.py, max 10 runs` | Cap iterations at 10 |
+
+The agent will then:
+
+1. Call the `autoresearch` tool to initialize and benchmark baseline.
+2. Read the code, analyze it, formulate a hypothesis.
+3. Edit the file with the optimization.
+4. Call the `autoresearch` tool again to benchmark and evaluate.
+5. The tool keeps improvements, reverts regressions, shows sparkline trends.
+6. Repeat until convergence or max runs.
+
+### Mid-loop commands
+
+Say any of these during an active optimization:
+
+| Command | Effect |
+|---------|--------|
+| `Generate the autoresearch dashboard` | Writes `autoresearch-dashboard.md` and appends to `worklog.md` |
+| `Show autoresearch history` | Lists all runs with `[+]` kept, `[-]` discarded, `[!]` error, `[~]` skipped |
+| `Reset autoresearch state` | Backs up state to `.bak`, starts fresh |
+| `Validate autoresearch state` | Checks JSONL integrity, reports issues |
+| `Show autoresearch status` | Quick overview of target, metric, runs, best result |
+| `Stop autoresearch` | Agent halts the loop |
+
+### Example prompts
 
 ```
-Optimize my bogo_sort.py
-Speed up this algorithm
-Run autoresearch on algo.py targeting runtime
+User: Optimize my bogo_sort.py
+User: Speed up this function — it's too slow
+User: Run autoresearch on my sorting code, try to get under 0.01s
+User: Generate the dashboard
+User: Show me the history
+User: Keep going, try a different approach
 ```
-
-The agent will:
-
-1. Ask for target file and metric settings (or use defaults).
-2. Benchmark the current code as a baseline.
-3. Analyze the code and propose a hypothesis.
-4. Edit the file with the optimization.
-5. Benchmark the change.
-6. Keep improvements, revert regressions.
-7. Show results with sparkline trends.
-8. Repeat until convergence or max runs.
-
-### At any time, ask the agent to:
-
-- **"Generate the autoresearch dashboard"** — writes `autoresearch-dashboard.md`
-- **"Show autoresearch history"** — list all past runs with status markers
-- **"Reset autoresearch state"** — clear state and start fresh
-- **"Validate autoresearch state"** — check JSONL integrity
 
 ## How It Works
 
@@ -75,23 +99,23 @@ The agent will:
                     └──────────────┘
 ```
 
-The agent uses its built-in file read/write and terminal tools. The `helpers/state.py` module provides pure-Python utilities — no Agent Zero imports, no side effects.
-
 ### Architecture
 
-| Layer | What it does |
-|-------|-------------|
-| `skills/autoresearch/SKILL.md` | Instructions the agent loads to know the full loop |
-| `helpers/state.py` | Pure Python: state, benchmarking, sparklines, dashboard |
-| `hooks.py` | Install/uninstall lifecycle hooks |
-| `plugin.yaml` | Plugin manifest |
+| Layer | File | What it does |
+|-------|------|-------------|
+| Tool | `tools/autoresearch.py` | Tool subclass — the agent calls this directly |
+| Prompt | `prompts/agent.system.tool.autoresearch.md` | Tells the agent the tool's parameters and JSON format |
+| Skill | `skills/autoresearch/SKILL.md` | Step-by-step workflow the agent follows |
+| Helpers | `helpers/state.py` | Pure Python — state, benchmarking, sparklines, dashboard |
+| Hooks | `hooks.py` | Install/uninstall lifecycle |
+| Config | `plugin.yaml` + `default_config.yaml` | Plugin manifest and defaults |
 
 ### Key design decisions
 
-- **No Tool subclass.** Agent Zero doesn't use a `Tool` class system. The agent runs code via its built-in execution tools.
+- **Two-call pattern.** Each iteration requires two tool calls: one to get baseline + instructions, one to evaluate after editing. This keeps the tool simple and the agent focused on reasoning.
 - **Pure Python helpers.** `helpers/state.py` imports only stdlib — `json`, `subprocess`, `statistics`, `hashlib`. No Agent Zero dependencies.
 - **JSONL state.** Each run is appended as a single JSON line. Concurrency-safe, easy to inspect, survives restarts.
-- **Auto-revert.** Discarded or errored edits are automatically reverted to the source backup.
+- **Auto-revert.** Discarded or errored edits are automatically reverted by the tool.
 - **Convergence detection.** 3 consecutive discards signals the agent to stop or try a different approach.
 
 ## State Files
@@ -122,12 +146,9 @@ Before: 4.230000s → After: 0.001000s (Δ -99.98%)
 Trend: ▁ (1 run)
 Range: 0.0010 ████████░░░░░░░░ 4.2300
 
-Run #2
-Hypothesis: sorted() is already optimal for this input size.
-Result: discard
-Trend: ▁▁ (2 runs)
-
-Run #3 — discard, Run #4 — discard
+Run #2 — discard
+Run #3 — discard
+Run #4 — discard
 Convergence detected: Last 3 runs discarded.
 
 Dashboard written to autoresearch-dashboard.md
