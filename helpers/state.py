@@ -249,7 +249,7 @@ def generate_dashboard(state_file: str = STATE_FILE,
     if worst and best and worst["run"] != best["run"]:
         md.append(f"| Worst run | #{worst['run']} — {worst['metric']:.6f}{metric_unit} |\n")
     if best and runs and runs[0].get("metric") is not None:
-        baseline = runs[0].get("metric_before", runs[0].get("metric"))
+        baseline = runs[0].get("metricBefore", runs[0].get("metric"))
         if baseline:
             if direction == "lower":
                 improvement = (baseline - best["metric"]) / baseline * 100
@@ -272,7 +272,7 @@ def generate_dashboard(state_file: str = STATE_FILE,
     for r in runs:
         rid = r.get("run", "?")
         st = r.get("status", "?")
-        before = r.get("metric_before")
+        before = r.get("metricBefore")
         after = r.get("metric")
         before_s = f"{before:.6f}" if before is not None else "---"
         after_s = f"{after:.6f}" if after is not None else "---"
@@ -290,13 +290,13 @@ def generate_dashboard(state_file: str = STATE_FILE,
             md.append(f"### Run #{r.get('run')}\n")
             md.append(f"- **Hypothesis:** {r.get('hypothesis', 'N/A')}\n")
             md.append(f"- **Description:** {r.get('description', 'N/A')}\n")
-            md.append(f"- **Metric:** {r.get('metric', '?'):.6f}{metric_unit} (was {r.get('metric_before', '?'):.6f})\n")
+            md.append(f"- **Metric:** {r.get('metric', '?'):.6f}{metric_unit} (was {r.get('metricBefore', '?'):.6f})\n")
             md.append(f"- **Git hash:** {r.get('gitCommit', 'N/A')}\n\n")
 
     if discarded:
         md.append("\n## Discarded Experiments\n")
         for r in discarded:
-            md.append(f"- **Run #{r.get('run')}:** {r.get('description', 'N/A')} — {r.get('metric', '?'):.6f}{metric_unit} (was {r.get('metric_before', '?'):.6f})\n")
+            md.append(f"- **Run #{r.get('run')}:** {r.get('description', 'N/A')} — {r.get('metric', '?'):.6f}{metric_unit} (was {r.get('metricBefore', '?'):.6f})\n")
 
     content = "\n".join(md)
     with open(dashboard_file, "w", encoding="utf-8") as fh:
