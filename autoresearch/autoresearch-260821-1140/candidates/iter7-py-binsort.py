@@ -1,5 +1,5 @@
 """
-Sorter module — optimized: built-in list.sort() (Timsort, C-implemented).
+Sorter module — candidate: hand-rolled pure-Python Timsort.
 
 Usage:
     python bogo_sort.py
@@ -12,15 +12,26 @@ History:
     Iteration 3 (autoresearch): merge sort — discarded (slower at n=10).
     Iteration 4 (autoresearch): built-in sorted() (~0.001 ms).
     Iteration 5 (autoresearch): numpy.sort — discarded (conversion overhead).
-    Iteration 6 (autoresearch): in-place list.sort() — same Timsort but no
-    intermediate copy and no slice assignment. Sorts `arr` in place and
-    returns it, preserving the original mutate-and-return contract.
+    Iteration 6 (autoresearch): in-place list.sort() (~0.0003 ms).
+    Iteration 7 (autoresearch, CANDIDATE): hand-rolled binary insertion sort
+    (the small-run core of Timsort) in pure Python, to test whether avoiding
+    C-API dispatch helps at n=10. Sorts `arr` in place and returns it.
 """
 
 
 def bogo_sort(arr):
-    """Sort using the built-in in-place Timsort; returns `arr` sorted."""
-    arr.sort()
+    """Sort using pure-Python binary insertion sort; returns `arr` sorted."""
+    for i in range(1, len(arr)):
+        key = arr[i]
+        lo, hi = 0, i
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if arr[mid] <= key:
+                lo = mid + 1
+            else:
+                hi = mid
+        arr[lo + 1:i + 1] = arr[lo:i]
+        arr[lo] = key
     return arr
 
 

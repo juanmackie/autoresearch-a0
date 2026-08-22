@@ -1,0 +1,28 @@
+{
+  "version": "2.1.0",
+  "source": "regression",
+  "timestamp": "2026-08-21T22:25:00Z",
+  "status": "COMPLETE",
+  "verdict": "STABLE",
+  "regression_state": "none",
+  "stability_score": 100.0,
+  "threshold": 95,
+  "results_tsv": "autoresearch/regression-260821-2225/regression-results.tsv",
+  "findings": [],
+  "config": {
+    "base": "347cfa0",
+    "scope": "bogo_sort.py",
+    "dims": ["functional", "flakiness", "performance"],
+    "dims_unavailable": ["api-contract", "data-migration", "integration-e2e", "resource", "visual-ui"],
+    "axes": ["diff", "repeat-5x", "independent-process-7x"],
+    "samples": 7,
+    "noise_band_pct": 5,
+    "verdict_math": "no HARD green->red; score = (0.30*100 + 0.30*100)/0.60 = 100.00 >= 95"
+  },
+  "chained_from": "autoresearch/autoresearch-260821-1140/handoff.json",
+  "safety": {
+    "git_push": false,
+    "worktree_cleaned": true,
+    "data_migration": "not run (no migrations in repo; allowlist n/a)"
+  }
+}

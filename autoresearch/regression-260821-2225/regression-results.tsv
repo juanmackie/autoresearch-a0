@@ -1,0 +1,6 @@
+# metric_direction: higher_is_better (subscore)
+iteration	timestamp	dimension	axis	tier	classification	baseline	candidate	delta	regressed	subscore	severity	status	file_line	description
+1	2026-08-21T22:30:14+00:00	functional	diff	HARD	regression-eligible	100/100 green (sizes 0-8)	100/100 green (sizes 0-30)	0 new reds	false	100	none	pass	bogo_sort.py	matched green-set (sizes<=8): green->green; no green->red transition
+2	2026-08-21T22:30:14+00:00	functional	diff	HARD	new-coverage	n/a (absent: bogo infeasible >size 8)	100/100 green (sizes 9-30)	+coverage	false	100	info	pass	bogo_sort.py	sizes>8 untestable on baseline (bogo); candidate green -> new coverage, ungated
+3	2026-08-21T22:30:14+00:00	flakiness	repeat-5x	SCORE	regression-eligible	0/5 nondeterministic	0/5 nondeterministic	0 flakes	false	100	none	pass	bogo_sort.py	5x verify both sides all green; caveat: n=5 detects p=5% flake rate w/ ~23% probability
+4	2026-08-21T22:30:14+00:00	performance	independent-process-7x	SCORE	regression-eligible	median 7750.560 ms	median 0.001 ms	-100.0000% (improvement)	false	100	none	pass	bogo_sort.py	Mann-Whitney U=0.0 p=1.000 (candidate not slower); effect 100% >> 5% noise band

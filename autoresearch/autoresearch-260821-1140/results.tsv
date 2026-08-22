@@ -1,0 +1,10 @@
+iteration	algorithm	correct	median_ms	kept
+0	bogo_sort (baseline)	true	7149.029	baseline
+1	bubble_sort	true	0.009	keep
+2	insertion_sort	true	0.006	keep
+3	merge_sort (top-down)	true	0.017	discard
+4	builtin_sorted (timsort/C)	true	0.001	keep
+5	numpy_sort	true	0.007	discard
+6	list_sort_inplace (timsort/C)	true	0.001	keep (won high-res tiebreak: 0.000313 vs 0.000430 ms)
+7	python_binary_insertion_sort	true	0.009	discard
+8	is_sorted_fastpath + list_sort	true	0.002	discard (high-res: 0.000636 vs 0.000222 ms)
