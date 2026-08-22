@@ -1,0 +1,50 @@
+{
+  "subcommand": "classic",
+  "skill_version": "2.2.2",
+  "goal": "Smoke test of the autoresearch engine: make bogo_sort faster while preserving exact behavior (same signature, same sorted output)",
+  "repo": "/Overnight research/autoresearch-a0",
+  "started_at": "2026-08-21T11:40:00Z",
+  "iterations_planned": 8,
+  "iterations_completed": 8,
+  "metric": "runtime",
+  "metric_unit": "ms",
+  "best_direction": "lower",
+  "benchmark": "python3 benchmarks/bench.py (median of 3 wall-clock runs, fixed seeded 10-element list, seeded shuffle stream)",
+  "verify": "python3 benchmarks/verify.py (100 seeded random lists, sizes 0-30, duplicates, empty/single/sorted/reversed edge cases)",
+  "baseline": {
+    "algorithm": "bogo_sort",
+    "median_ms": 7149.029,
+    "correct": true,
+    "note": "full 0-30 verification infeasible for bogo; verified on sizes 0-8 plus fixed benchmark list"
+  },
+  "final_incumbent": {
+    "iteration": 6,
+    "algorithm": "in-place list.sort() (Timsort, C-implemented)",
+    "median_ms": 0.001,
+    "high_res_ms_per_call": 0.000313,
+    "correct": true,
+    "verification": "correct=true n=100 max_size=30 (all 100 seeded lists, sizes 0-30, duplicates + edge cases)"
+  },
+  "speedup_factor_bench_median": 7149029,
+  "speedup_factor_high_res": 22840000,
+  "iterations_kept": [1, 2, 4, 6],
+  "iterations_discarded": [3, 5, 7, 8],
+  "convergence": "incumbent unbeaten for final 2 iterations; loop terminated at iteration bound (8)",
+  "status": "CEILING",
+  "files_changed": [
+    "bogo_sort.py",
+    "benchmarks/bench.py (new)",
+    "benchmarks/verify.py (new)"
+  ],
+  "candidates_dir": "autoresearch/autoresearch-260821-1140/candidates/",
+  "safety": {
+    "git_push": false,
+    "bounded": true,
+    "max_iterations": 8
+  },
+  "notes": [
+    "Baseline bogo sort has huge timing variance (unseeded runs can exceed 600s); benchmark seeds random before each timed run for reproducibility.",
+    "All discarded candidates were reverted from candidates/ snapshots; working tree ends at iteration-6 incumbent.",
+    "Docstrings updated honestly at each kept iteration to describe the actual algorithm."
+  ]
+}
